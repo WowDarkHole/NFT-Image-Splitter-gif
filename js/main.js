@@ -20,7 +20,7 @@ let progress, timeTaken;
 const section = document.createElement('canvas');
 const ctx = section.getContext('2d');
 
-function init () {
+function init() {
     txt = $('textarea');
     previewDiv = $('div');
     prev = $('td#preview');
@@ -52,12 +52,12 @@ function init () {
 const toBlob = (d) => new Promise((res) => d.toBlob(res));
 const isValidFile = (file) => !!file && VALID_EXTENSIONS.some(ext => file.name.endsWith(ext));
 
-function addEventListeners () {
+function addEventListeners() {
     form.addEventListener('submit', splitImages);
     fileInput.addEventListener('change', handleFileChange);
 }
 
-function toggleShrink () {
+function toggleShrink() {
     if (shrinkInput.checked) {
         shrinkCheck.style.display = '';
         shrinkCross.style.display = 'none';
@@ -67,18 +67,18 @@ function toggleShrink () {
     }
 }
 
-function handleFileChange () {
-    file = fileInput.files[ 0 ] || file;
+function handleFileChange() {
+    file = fileInput.files[0] || file;
     if (!isValidFile(file)) return;
     fileInfo.innerText = file.name;
     delayLabel.style.display = delayInput.style.display = file.name.endsWith('.gif') ? '' : 'none';
 }
 
-function save () {
+function save() {
     saveAs(currentZip, 'emojis.zip');
 }
 
-function resize (img, w, h) {
+function resize(img, w, h) {
     const resizerCanvas = document.createElement('canvas');
     const resizerCtx = resizerCanvas.getContext('2d');
     resizerCanvas.width = w;
@@ -87,7 +87,7 @@ function resize (img, w, h) {
     return resizerCanvas;
 }
 
-async function splitImages () {
+async function splitImages() {
     if (!isValidFile(file)) return;
 
     const size = +sizeInput.value;
@@ -112,194 +112,82 @@ async function splitImages () {
     progress.innerText = '';
     txt.value = '';
     section.width = section.height = size;
+    // If the image is not a gif
+    let img = new Image();
+    img.src = URL.createObjectURL(file);
 
-    if (file.name.endsWith('.gif')) {
-        // Is the image a gif?
+    await new Promise((res, rej) => {
+        img.addEventListener('load', async function () {
 
-        try {
-            // Create array of frames of the provided gif
-            var frames = await gifFrames({
-                url: URL.createObjectURL(file),
-                frames: 'all',
-                outputType: 'canvas'
-            });
-        } catch (err) {
-            fileInfo.innerText = err;
-            throw err;
-        }
-
-        const delay = +delayInput.value + 20;
-
-        const img = frames[ 0 ].frameInfo;
-        w = Math.ceil(img.width / size);
-        h = Math.ceil(img.height / size);
-        numTiles = w * h;
-
-        if (shrinkInput.checked && numTiles > 50) {
-            const scale = 50 / (w * h);
-
-            for (let i = 0; i < frames.length; i++) {
-                const frameImage = frames[ i ].getImage();
-                frames[ i ] = resize(frameImage, img.width * scale, img.height * scale);
-            }
-
-            const frameImage = frames[ 0 ];
-
-            w = Math.ceil(img.width * scale / size);
-            h = Math.ceil(img.height * scale / size);
+            w = Math.ceil(img.width / size);
+            h = Math.ceil(img.height / size);
             numTiles = w * h;
-        }
 
-        const previewSize = Math.min(prev.offsetWidth / w, prev.offsetHeight / h);
+            if (shrinkInput.checked && numTiles > 50) {
+                // Find a scale value such that w * h <= 50
 
-        const queue = [];
-        ctx.fillStyle = '#36393F';
+                const scale = 50 / (w * h);
 
-        for (let y = 0; y > -h; y--) {
-            const q = [];
-
-            for (let x = 0; x > -w; x--) {
-                // Script path relative to index.html
-                const gif = new GIF({
-                    workerScript: 'js/gif.worker.js'
-                });
-
-                ctx.clearRect(0, 0, size, size);
-                ctx.fillRect(0, 0, size, size);
-
-                for (const image of frames) {
-                    if (image instanceof HTMLElement) {
-                        // document.body.appendChild(image);
-                        // console.log(image)
-                        ctx.drawImage(image, x * size, y * size);
-                    } else {
-                        ctx.drawImage(image.getImage(), x * size, y * size);
-                    }
-
-                    gif.addFrame(section, { copy: true, delay });
-                }
-
-                gif.render();
-
-                await new Promise((res, rej) => {
-                    gif.on('finished', blob => {
-                        if (blob.size > 256000) {
-                            txt.value += `WARNING: Image ${ prefix }_${ -x }_${ -y } is too large for a discord emoji (>256kb) at ${ blob.size / 1000 }kb.\n`;
-                        }
-
-                        if (numTiles > 50) {
-                            zip.file(`section${ Math.floor(done / 50) }/${ prefix }_${ -x }_${ -y }.gif`, blob);
-                        } else {
-                            zip.file(`${ prefix }_${ -x }_${ -y }.gif`, blob);
-                        }
-
-                        const preview = document.createElement('img');
-                        preview.src = URL.createObjectURL(blob);
-                        preview.width = preview.height = previewSize;
-                        q.push(preview);
-
-                        str += `:${ prefix }_${ -x }_${ -y }:`;
-                        res();
-                    })
-                });
-
-                progress.innerText = `Progress: ${ ++done }/${ numTiles }`;
-            }
-
-            queue.push(q);
-            str += '\r\n';
-        }
-
-        for (let y = 0; y < h; y++) {
-            const row = document.createElement('div');
-            row.classList.add('imageRow');
-            row.style.height = `${ Math.floor(previewSize) + 0.8 * 2 }px`;
-
-            for (let x = 0; x < w; x++) {
-                row.appendChild(queue[ y ][ x ]);
-            }
-
-            previewDiv.appendChild(row);
-        }
-    } else {
-
-        // If the image is not a gif
-        let img = new Image();
-        img.src = URL.createObjectURL(file);
-
-        await new Promise((res, rej) => {
-            img.addEventListener('load', async function () {
+                img = resize(img, img.width * scale, img.height * scale);
 
                 w = Math.ceil(img.width / size);
                 h = Math.ceil(img.height / size);
                 numTiles = w * h;
+            }
 
-                if (shrinkInput.checked && numTiles > 50) {
-                    // Find a scale value such that w * h <= 50
+            // const c = document.createElement('canvas');
+            // c.width = img.width;
+            // c.height = img.height;
+            // c.getContext('2d').drawImage(img, 0, 0);
+            // document.body.appendChild(c);
 
-                    const scale = 50 / (w * h);
+            const previewSize = Math.min(prev.offsetWidth / w, prev.offsetHeight / h);
 
-                    img = resize(img, img.width * scale, img.height * scale);
+            for (let y = 0; y > -h; y--) {
+                const row = document.createElement('div');
+                row.classList.add('imageRow');
+                row.style.height = `${Math.floor(previewSize) + 0.8 * 2}px`;
 
-                    w = Math.ceil(img.width / size);
-                    h = Math.ceil(img.height / size);
-                    numTiles = w * h;
-                }
+                for (let x = 0; x > -w; x--) {
+                    ctx.drawImage(img, x * size, y * size);
+                    const blob = await toBlob(section);
 
-                // const c = document.createElement('canvas');
-                // c.width = img.width;
-                // c.height = img.height;
-                // c.getContext('2d').drawImage(img, 0, 0);
-                // document.body.appendChild(c);
-
-                const previewSize = Math.min(prev.offsetWidth / w, prev.offsetHeight / h);
-
-                for (let y = 0; y > -h; y--) {
-                    const row = document.createElement('div');
-                    row.classList.add('imageRow');
-                    row.style.height = `${ Math.floor(previewSize) + 0.8 * 2 }px`;
-
-                    for (let x = 0; x > -w; x--) {
-                        ctx.drawImage(img, x * size, y * size);
-                        const blob = await toBlob(section);
-
-                        if (blob.size > 256000) {
-                            txt.value += `WARNING: Image ${ prefix }_${ -x }_${ -y } is too large for a discord emoji (>256kb) at ${ blob.size / 1000 }kb.\n`;
-                        }
-
-                        if (numTiles > 50) {
-                            zip.file(`section${ Math.floor(done / 50) }/${ prefix }_${ -x }_${ -y }.png`, blob);
-                        } else {
-                            zip.file(`${ prefix }_${ -x }_${ -y }.png`, blob);
-                        }
-
-                        const preview = document.createElement('img');
-                        preview.src = URL.createObjectURL(blob);
-                        preview.width = preview.height = previewSize;
-                        row.appendChild(preview);
-
-                        ctx.clearRect(0, 0, size, size);
-                        str += `:${ prefix }_${ -x }_${ -y }:`;
-                        progress.innerText = `Progress: ${ ++done }/${ numTiles }`;
+                    if (blob.size > 256000) {
+                        txt.value += `WARNING: Image ${prefix}_${-x}_${-y} is too large for a discord emoji (>256kb) at ${blob.size / 1000}kb.\n`;
                     }
 
-                    previewDiv.appendChild(row);
-                    str += '\r\n';
+                    // if (numTiles > 50) {
+                    //     zip.file(`section${Math.floor(done / 50)}/${prefix}_${-x}_${-y}.png`, blob);
+                    // } else {
+                    zip.file(`${prefix}_${-x}_${-y}.png`, blob);
+                    // }
+
+                    const preview = document.createElement('img');
+                    preview.src = URL.createObjectURL(blob);
+                    preview.width = preview.height = previewSize;
+                    row.appendChild(preview);
+
+                    ctx.clearRect(0, 0, size, size);
+                    str += `:${prefix}_${-x}_${-y}:`;
+                    progress.innerText = `Progress: ${++done}/${numTiles}`;
                 }
 
-                res();
-            });
-        });
-    }
+                previewDiv.appendChild(row);
+                str += '\r\n';
+            }
 
-    progress.innerText = `Progress: ${ numTiles }/${ numTiles }`;
+            res();
+        });
+    });
+
+    progress.innerText = `Progress: ${numTiles}/${numTiles}`;
 
     txt.value += str;
 
     zip.file('emojis.txt', str);
     currentZip = await zip.generateAsync({ type: 'blob' });
 
-    timeTaken.innerText = `Time taken: ${ Date.now() - startTime }ms`;
+    timeTaken.innerText = `Time taken: ${Date.now() - startTime}ms`;
     submit.value = 'Split';
 
     download.removeEventListener('click', save);
