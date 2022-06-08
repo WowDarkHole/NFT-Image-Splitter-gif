@@ -16,6 +16,7 @@ const VALID_EXTENSIONS = [
 let txt, previewDiv, prev, shrinkCheck, shrinkCross, fileInfo;
 let submit, fileInput, prefixInput, sizeInput, shrinkInput, delayLabel, delayInput, form, download;
 let progress, timeTaken;
+const generatedPngFiles = [];
 
 const section = document.createElement('canvas');
 const ctx = section.getContext('2d');
@@ -114,7 +115,9 @@ async function splitImages() {
     section.width = section.height = size;
     // If the image is not a gif
     let img = new Image();
+    console.log("!!!!", file);
     img.src = URL.createObjectURL(file);
+    console.log("~~~~", img);
 
     await new Promise((res, rej) => {
         img.addEventListener('load', async function () {
@@ -125,7 +128,7 @@ async function splitImages() {
 
             if (shrinkInput.checked && numTiles > 50) {
                 // Find a scale value such that w * h <= 50
-
+                console.log("here```````````````````````")
                 const scale = 50 / (w * h);
 
                 img = resize(img, img.width * scale, img.height * scale);
@@ -160,6 +163,7 @@ async function splitImages() {
                     //     zip.file(`section${Math.floor(done / 50)}/${prefix}_${-x}_${-y}.png`, blob);
                     // } else {
                     zip.file(`${prefix}_${-x}_${-y}.png`, blob);
+                    generatedPngFiles.push(blob);
                     // }
 
                     const preview = document.createElement('img');
@@ -180,18 +184,18 @@ async function splitImages() {
         });
     });
 
+    console.log("~~~", generatedPngFiles);
+
     progress.innerText = `Progress: ${numTiles}/${numTiles}`;
 
     txt.value += str;
 
-    zip.file('emojis.txt', str);
     currentZip = await zip.generateAsync({ type: 'blob' });
 
     timeTaken.innerText = `Time taken: ${Date.now() - startTime}ms`;
     submit.value = 'Split';
 
-    download.removeEventListener('click', save);
-    download.addEventListener('click', save);
+    // save();
 
     addEventListeners();
 }
